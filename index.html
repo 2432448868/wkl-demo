@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Page</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:#0d1117;
+  color:#e6edf3;
+  transition:background .6s ease,color .6s ease;
+}
+body.light{background:#f0f2f5;color:#1a1a2e}
+canvas{position:fixed;top:0;left:0;z-index:0}
+
+.theme-toggle{
+  position:fixed;top:24px;right:24px;z-index:10;
+  width:48px;height:48px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.05);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:22px;transition:all .3s;
+  backdrop-filter:blur(8px);
+}
+body.light .theme-toggle{border-color:rgba(0,0,0,.15);background:rgba(255,255,255,.7)}
+.theme-toggle:hover{transform:scale(1.1) rotate(15deg);background:rgba(255,255,255,.15)}
+body.light .theme-toggle:hover{background:rgba(255,255,255,.9)}
+
+.content{
+  position:fixed;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  text-align:center;z-index:5;user-select:none;
+  padding:0 20px;
+}
+.content h1{
+  font-size:clamp(2.5rem,8vw,5rem);font-weight:800;
+  background:linear-gradient(135deg,#667eea 0%,#764ba2 50%,#f093fb 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;margin-bottom:16px;
+  opacity:0;animation:fadeUp 1s ease .3s forwards;
+}
+body.light .content h1{
+  background:linear-gradient(135deg,#4a5fc1 0%,#7c3a8a 50%,#c026d3 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.subtitle{
+  font-size:clamp(1rem,2.5vw,1.25rem);
+  opacity:0;animation:fadeUp 1s ease .8s forwards;
+  letter-spacing:2px;min-height:1.5em;
+}
+.cursor-blink::after{content:'|';animation:blink 1s infinite;margin-left:2px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.hint{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  font-size:.85rem;opacity:0;animation:fadeUp 1s ease 1.5s forwards;
+  color:inherit;opacity:.5;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<button class="theme-toggle" id="themeToggle" aria-label="切换主题">🌙</button>
+<div class="content">
+  <h1>Hello, World</h1>
+  <p class="subtitle cursor-blink" id="subtitle"></p>
+</div>
+<p class="hint" style="opacity:.4">move your mouse around ✨</p>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = canvas.width = window.innerWidth;
+let H = canvas.height = window.innerHeight;
+let isDark = true;
+const mouse = { x: W / 2, y: H / 2 };
+
+const COUNT = Math.min(Math.floor((W * H) / 9000), 220);
+const CONNECT_DIST = 130;
+const MOUSE_RADIUS = 160;
+
+class Particle {
+  constructor() {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    this.vx = (Math.random() - 0.5) * 0.4;
+    this.vy = (Math.random() - 0.5) * 0.4;
+    this.r = Math.random() * 1.8 + 0.8;
+    this.hue = 220 + Math.random() * 70;
+  }
+  update() {
+    const dx = mouse.x - this.x, dy = mouse.y - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < MOUSE_RADIUS && dist > 0) {
+      const f = (MOUSE_RADIUS - dist) / MOUSE_RADIUS * 0.015;
+      this.vx += (dx / dist) * f;
+      this.vy += (dy / dist) * f;
+    }
+    this.x += this.vx; this.y += this.vy;
+    this.vx *= 0.99; this.vy *= 0.99;
+    if (this.x < 0) { this.x = 0; this.vx *= -1; }
+    if (this.x > W) { this.x = W; this.vx *= -1; }
+    if (this.y < 0) { this.y = 0; this.vy *= -1; }
+    if (this.y > H) { this.y = H; this.vy *= -1; }
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = isDark
+      ? `hsla(${this.hue},75%,72%,.85)`
+      : `hsla(${this.hue},65%,52%,.7)`;
+    ctx.fill();
+  }
+}
+
+const particles = Array.from({ length: COUNT }, () => new Particle());
+
+function drawConnections() {
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < CONNECT_DIST * CONNECT_DIST) {
+        const d = Math.sqrt(d2);
+        const alpha = (1 - d / CONNECT_DIST) * 0.45;
+        ctx.strokeStyle = isDark
+          ? `rgba(140,170,255,${alpha})`
+          : `rgba(90,110,210,${alpha})`;
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+  particles.forEach(p => { p.update(); p.draw(); });
+  drawConnections();
+  requestAnimationFrame(loop);
+}
+loop();
+
+window.addEventListener('resize', () => {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+});
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('touchmove', e => {
+  mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY;
+}, { passive: true });
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  isDark = !isDark;
+  document.body.classList.toggle('light');
+  document.getElementById('themeToggle').textContent = isDark ? '🌙' : '☀️';
+});
+
+const texts = [
+  'Welcome to my little corner ✨',
+  'Powered by coffee & code ☕',
+  'Build. Break. Rebuild. 🔧',
+  'The best time to start is now 🚀',
+];
+const subtitle = document.getElementById('subtitle');
+let ti = 0, ci = 0, deleting = false;
+
+function type() {
+  const cur = texts[ti];
+  if (!deleting) {
+    subtitle.textContent = cur.slice(0, ci + 1);
+    ci++;
+    if (ci === cur.length) { setTimeout(() => { deleting = true; type(); }, 2000); return; }
+  } else {
+    subtitle.textContent = cur.slice(0, ci);
+    ci--;
+    if (ci < 0) { deleting = false; ci = 0; ti = (ti + 1) % texts.length; }
+  }
+  setTimeout(type, deleting ? 35 : 75);
+}
+setTimeout(type, 1500);
+</script>
+</body>
+</html>
